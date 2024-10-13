@@ -1,0 +1,44 @@
+
+pipeline {
+    agent any
+    environment {
+        REMOTE_HOST = 'ubuntu@16.170.251.156'
+        DOCKER_IMAGE = 'naveedharri/cloud-new'
+    }
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git branch: 'main', url: 'https://github.com/naveedharri/portfolio-html.git'
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh 'docker build -t ${DOCKER_IMAGE} .'
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+             script {
+                    sh 'docker tag ${DOCKER_IMAGE}:latest docker.io/${DOCKER_IMAGE}:latest'
+                    sh 'docker push docker.io/${DOCKER_IMAGE}:latest'
+                }
+            }
+        }
+        stage('Deploy to EC2') {
+            steps {
+              script {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} << EOF
+                        docker pull docker.io/${DOCKER_IMAGE}:latest
+                        docker stop ${DOCKER_IMAGE} || true
+                        docker rm ${DOCKER_IMAGE} || true
+                        docker run -d --name ${DOCKER_IMAGE} -p 80:80 docker.io/${DOCKER_IMAGE}:latest
+                        EOF
+                    """
+                }
+            }
+        }
+    }
+}
